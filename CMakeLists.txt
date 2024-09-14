@@ -19,3 +19,13 @@ find_package(GLUT REQUIRED)
 include_directories(library ${OPENGL_INCLUDE_DIRS} ${GLUT_INCLUDE_DIRS})
 
 target_link_libraries(game SDL2main SDL2 ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+
+# Specify resource files
+set(RESOURCE_FILES
+    src/res/player.bmp
+    src/res/bullet.bmp
+    src/res/enemy.bmp
+)
+
+# Copy resource files to the build directory
+file(COPY ${RESOURCE_FILES} DESTINATION ${CMAKE_BINARY_DIR}/res)

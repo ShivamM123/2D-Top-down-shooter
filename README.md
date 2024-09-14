@@ -19,8 +19,9 @@ The goal of our project was to get familiar with the basics of game development.
 
 ### How to build and run:
 ```
-cmake .
-cmake --build .
+cmake -S . -B build
+cmake --build build
+cd build
 ./game
 ```
 
