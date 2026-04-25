@@ -1,20 +1,19 @@
 #pragma once
 #include "Enemy.h"
-#include <GL/freeglut.h>
 #include <cmath>
 
 class Boss : public Enemy {
 private:
     float chargeTimer;
     float chargeCooldown;
-    bool isCharging;
-    float chargeSpeedMultiplier;
-    float bossAngle;  // for rotation animation
+    bool  isCharging;
+    float chargeSpeedMult;
+    float bossAngle;
 
 public:
-    Boss(float x, float y, char* textureLocation, unsigned int difficulty);
+    Boss(float x, float y, char* tex, unsigned int difficulty);
     void draw() override;
-    void updateCharge(float playerX, float playerY);
+    void updateCharge(float px, float py);
     bool getIsCharging() const { return isCharging; }
     float getEffectiveSpeed();
 };
