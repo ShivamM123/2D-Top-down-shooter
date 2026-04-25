@@ -6,6 +6,7 @@ Sprite::Sprite(float x, float y, float width, float height, char* filename)
 	angle = 0;
 	origoX = width / 2;
 	origoY = height / 2;
+	textureName = 0;
 }
 
 Sprite::Sprite(float width, float height, char* filename)
@@ -13,6 +14,7 @@ Sprite::Sprite(float width, float height, char* filename)
 	angle = 0;
 	origoX = width / 2;
 	origoY = height / 2;
+	textureName = 0;
 }
 
 Sprite::~Sprite() {}
@@ -39,7 +41,9 @@ void Sprite::initTexture(char* filename) {
 }
 
 void Sprite::draw() {
-	initTexture(filename);
+	if (textureName == 0) {
+		initTexture(filename);
+	}
 
 	glEnable(GL_TEXTURE_2D);
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);

@@ -12,6 +12,7 @@ Game* game = new Game();
 
 void displayMenu(void) {
 	menu.draw();
+	glutSwapBuffers();
 }
 
 void displayGame(void) {
@@ -29,7 +30,7 @@ void onMouseMenu(int button, int state, int x, int y);
 
 int main(int argc, char** argv) {
 	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_SINGLE);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_STENCIL);
 	glutInitWindowSize(600, 500);
 	glutInitWindowPosition(100, 100);
 	glutCreateWindow("Hello world :D");
@@ -68,6 +69,7 @@ void onMouseMenu(int button, int state, int x, int y) {
 			exit(0);
 		}
 	}
+	glutPostRedisplay();
 }
 
 void onMouseSettings(int button, int state, int x, int y){
@@ -94,6 +96,7 @@ void onMouseSettings(int button, int state, int x, int y){
 	}
 
 	game->setGameMode(menu.getGameMode());
+	glutPostRedisplay();
 }
 
 void keyboard(unsigned char key, int x, int y) {
@@ -106,6 +109,7 @@ void mouseMove(int x, int y) {
 
 void displaySettings() {
 	menu.drawSettings();
+	glutSwapBuffers();
 }
 
 void startSettings() {

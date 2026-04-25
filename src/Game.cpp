@@ -37,8 +37,10 @@ void Game::moveEnemy() {
 	float dirX = player->getPositionX() - enemy->getPositionX();
 	float dirY = player->getPositionY() - enemy->getPositionY();
 	float normalize = sqrt(dirX * dirX + dirY * dirY);
-	dirX /= normalize;
-	dirY /= normalize;
+	if (normalize > 0) {
+		dirX /= normalize;
+		dirY /= normalize;
+	}
 	enemy->setPositionX(enemy->getPositionX() + dirX * enemy->getMoveSpeed());
 	enemy->setPositionY(enemy->getPositionY() + dirY * enemy->getMoveSpeed());
 
@@ -99,9 +101,9 @@ void Game::timer(void(*t)(int)) {
 		pushBack(bullet, enemy);
 		delete bullet;
 		bullet = nullptr;
-		if(enemy->getHealth() == 0) {
-			enemy = nullptr;
+		if(enemy->getHealth() <= 0) {
 			delete enemy;
+			enemy = nullptr;
 		}
 	}
 
