@@ -1,4 +1,4 @@
-﻿#include "MenuObject.h"
+#include "MenuObject.h"
 #include <iostream>
 
 
@@ -12,8 +12,17 @@ void RenderString(float x, float y, void* font, float r, float g, float b, const
 MenuObject::MenuObject() {}
 
 void MenuObject::drawMenuItem(const unsigned char* title, float offset) {
-	glColor3f(255, 0, 0);
+	// Button Shadow
+	glColor3f(0.1f, 0.1f, 0.15f);
+	glBegin(GL_POLYGON);
+	glVertex2f(x + 0.02f, y - offset - 0.02f);
+	glVertex2f(x + width + 0.02f, y - offset - 0.02f);
+	glVertex2f(x + width + 0.02f, y + height - offset - 0.02f);
+	glVertex2f(x + 0.02f, y + height - offset - 0.02f);
+	glEnd();
 
+	// Button Body (Teal)
+	glColor3f(0.2f, 0.6f, 0.8f);
 	glBegin(GL_POLYGON);
 	glVertex2f(x, y - offset);
 	glVertex2f(x + width, y - offset);
@@ -21,15 +30,31 @@ void MenuObject::drawMenuItem(const unsigned char* title, float offset) {
 	glVertex2f(x, y + height - offset);
 	glEnd();
 
-	RenderString(x + (width / 4), y - offset + (height / 3), GLUT_BITMAP_TIMES_ROMAN_24, 255, 255, 255, title);
+	// Button Border
+	glColor3f(1.0f, 1.0f, 1.0f);
+	glLineWidth(2.0f);
+	glBegin(GL_LINE_LOOP);
+	glVertex2f(x, y - offset);
+	glVertex2f(x + width, y - offset);
+	glVertex2f(x + width, y + height - offset);
+	glVertex2f(x, y + height - offset);
+	glEnd();
+
+	// Calculate text position roughly centered
+	float textX = x + (width / 2.0f) - 0.15f; 
+	RenderString(textX, y - offset + (height / 2.0f) - 0.02f, GLUT_BITMAP_TIMES_ROMAN_24, 1.0f, 1.0f, 1.0f, title);
 
 	glFlush();
 }
 
 void MenuObject::draw() {
+	glClearColor(0.1f, 0.15f, 0.2f, 1.0f); // Dark blue background
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 	glEnable(GL_STENCIL_TEST);
 	glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+
+	// Game Title
+	RenderString(-0.35f, 0.7f, GLUT_BITMAP_TIMES_ROMAN_24, 1.0f, 0.8f, 0.0f, (const unsigned char*)"2D Top-Down Shooter");
 
 	float offset = 0;
 
@@ -54,7 +79,7 @@ void MenuObject::changeGameMode() {
 
 
 void MenuObject::drawSettings() {
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClearColor(0.1f, 0.15f, 0.2f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 	glLoadIdentity(); // Reset The Projection Matrix
 	glEnable(GL_STENCIL_TEST);

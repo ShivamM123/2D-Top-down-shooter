@@ -7,8 +7,8 @@
 #define _WIN32_WINNT 0x500
 
 MenuObject menu;
-
 Game* game = new Game();
+bool keys[256];
 
 void displayMenu(void) {
 	menu.draw();
@@ -22,13 +22,15 @@ void displayGame(void) {
 void startNewGame();
 void startSettings();
 void MouseShoot(int, int, int, int);
-void keyboard(unsigned char, int, int);
+void keyboardDown(unsigned char, int, int);
+void keyboardUp(unsigned char, int, int);
 void mouseMove(int, int);
 void reshape(int, int);
 void timer(int);
 void onMouseMenu(int button, int state, int x, int y);
 
 int main(int argc, char** argv) {
+	for(int i=0; i<256; i++) keys[i] = false;
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_STENCIL);
 	glutInitWindowSize(600, 500);
@@ -99,8 +101,13 @@ void onMouseSettings(int button, int state, int x, int y){
 	glutPostRedisplay();
 }
 
-void keyboard(unsigned char key, int x, int y) {
+void keyboardDown(unsigned char key, int x, int y) {
+	keys[key] = true;
 	game->onKeyPressed(key, x, y);
+}
+
+void keyboardUp(unsigned char key, int x, int y) {
+	keys[key] = false;
 }
 
 void mouseMove(int x, int y) {
@@ -122,7 +129,8 @@ void startSettings() {
 void startNewGame() {
 	glutDisplayFunc(displayGame);
 	glutPassiveMotionFunc(mouseMove);
-	glutKeyboardFunc(keyboard);
+	glutKeyboardFunc(keyboardDown);
+	glutKeyboardUpFunc(keyboardUp);
 	glutReshapeFunc(reshape);
 	glutTimerFunc(1, timer, 0);
 	glutMouseFunc(MouseShoot);
@@ -139,5 +147,6 @@ void reshape(int width, int height) {
 }
 
 void timer(int value) {
+	game->updateMovement(keys);
 	game->timer(timer);
 }

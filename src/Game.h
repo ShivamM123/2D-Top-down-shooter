@@ -4,6 +4,7 @@
 #include "Player.h"
 #include "Bullet.h"
 #include "Enemy.h"
+#include <vector>
 
 class Game: IDrawable {
 private:
@@ -11,18 +12,23 @@ private:
 	char* filename2;
 	char* filename3;
 	Player* player;
-	Bullet* bullet;
-	Enemy* enemy;
+	std::vector<Bullet*> bullets;
+	std::vector<Enemy*> enemies;
+	int score;
+	unsigned int gameMode;
+	int spawnTimer;
 public:
 	Game();
 	void setGameMode(unsigned int mode);
 	void onKeyPressed(unsigned char key, int x, int y);
+	void updateMovement(bool keys[256]);
 	void onMouseClicked(int button, int state, int x, int y);
 	void onMouseMove(int x, int y);
 	void timer(void (*t)(int));
 	void draw();
+	void drawHUD();
 	bool detectCollision(Entity* entity1, Entity* entity2);
 	void SpawnEnemy();
-	void moveEnemy();
+	void moveEnemy(Enemy* enemy);
 	void pushBack(Entity* entity1, Entity* entity2);
 };
