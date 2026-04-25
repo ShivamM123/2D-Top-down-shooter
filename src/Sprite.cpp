@@ -20,10 +20,7 @@ Sprite::Sprite(float width, float height, char* filename)
 Sprite::~Sprite() {}
 
 void Sprite::loadTextureFromFile(char* filename) {
-	glClearColor(0.0, 0.0, 0.0, 0.0);
-	glShadeModel(GL_FLAT);
-	glEnable(GL_DEPTH_TEST);
-
+	// Note: do NOT set GL state here (no glEnable/glClearColor) — this runs mid-frame
 	RgbImage theTexMap(filename);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);

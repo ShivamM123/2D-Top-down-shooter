@@ -22,5 +22,6 @@ public:
 	virtual float getHeight();
 	virtual void setAngle(float);
 	virtual float getAngle();
+	virtual void setMoveSpeed(float spd) { moveSpeed = spd; }
 	virtual void draw() = 0;
 };

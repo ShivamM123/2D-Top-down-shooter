@@ -1,26 +1,31 @@
+#pragma once
 #include "IDrawable.h"
 #include <GL/freeglut.h>
+#include <cstring>
+#include <ctime>
+
+#define NUM_STARS 120
 
 class MenuObject: public IDrawable {
-
 private:
-	float x = -0.4, y = 0.3, space = 0.2;
-	float width = 0.6, height = 0.2;
-	void drawMenuItem(const unsigned char* title, float offset);
-	unsigned char titleNewGame[9] = "New Game";
-	unsigned char titleSettings[9] = "Settings";
-	unsigned char titleExit[5] = "Exit";
-	unsigned char titleEasy[5]= "Easy";
-	unsigned char titleNormal[7] = "Normal";
-	unsigned char titleHard[5] = "Hard";
-	unsigned char titleBack[5] = "Back";
-	static unsigned char selectedItem; //0- None 1 - New Game, 2- Settings, 3 - Exit
-	unsigned int gameMode=0; // 0 easy, 1 normal, 2 hard
+    float animTimer;
+    int   hoverItem;
+    unsigned int gameMode = 1; // 0 easy, 1 normal, 2 hard
+
+    // Star field
+    float starX[NUM_STARS];
+    float starY[NUM_STARS];
+    float starBright[NUM_STARS];
+
+    void drawButton(int stencilVal, const char* label,
+                    float x, float y, float w, float h,
+                    float r, float g, float b, bool glow);
 
 public:
-	MenuObject();
-	void draw();
-	void changeGameMode();
-	void drawSettings();
-	unsigned int getGameMode();
+    MenuObject();
+    void draw()     override;
+    void drawSettings();
+    void changeGameMode();
+    unsigned int getGameMode();
+    void setHoverItem(int item);
 };

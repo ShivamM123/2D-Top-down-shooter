@@ -4,11 +4,13 @@ project(2D-Top-down-shooter VERSION 1.0)
 add_executable(game 
     src/2D-Top-down-shooter.cpp
     src/Bullet.cpp
+    src/Boss.cpp
     src/Character.cpp
     src/Enemy.cpp
     src/Entity.cpp
     src/Game.cpp
     src/MenuObject.cpp
+    src/Perk.cpp
     src/Player.cpp
     src/RgbImage.cpp
     src/Sprite.cpp

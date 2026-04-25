@@ -4,7 +4,10 @@
 Entity::Entity(float width, float height, float moveSpeed, char* textureLocation, float health, float damage)
 	: width(width), height(height), moveSpeed(moveSpeed), health(health), damage(damage) {
 
-	sprite = new Sprite(width, height, textureLocation);
+	if (textureLocation != nullptr)
+		sprite = new Sprite(width, height, textureLocation);
+	else
+		sprite = nullptr;
 	x = 100;
 	y = 100;
 	origoX = width / 2;
