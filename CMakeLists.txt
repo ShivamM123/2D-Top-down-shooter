@@ -3,6 +3,7 @@ project(2D-Top-down-shooter VERSION 1.0)
 
 add_executable(game 
     src/2D-Top-down-shooter.cpp
+    src/AIDirector.cpp
     src/Bullet.cpp
     src/Boss.cpp
     src/Character.cpp

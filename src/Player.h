@@ -1,5 +1,5 @@
+#pragma once
 #include "Entity.h"
-
 class Player: public Entity {
 public:
 	Player(float, float, float, char*, float);

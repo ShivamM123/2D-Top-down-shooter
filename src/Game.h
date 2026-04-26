@@ -8,6 +8,7 @@
 #include "Enemy.h"
 #include "Boss.h"
 #include "Perk.h"
+#include "AIDirector.h"
 
 class Game: IDrawable {
 private:
@@ -20,6 +21,7 @@ private:
     std::vector<Enemy*>  enemies;
     std::vector<Perk*>   perks;
     Boss* boss;
+    AIDirector* director;
 
     int   score;
     int   killCount;
@@ -52,16 +54,18 @@ public:
     void timer(void (*t)(int));
     void draw();
 
+    // Make accessible for AIDirector
+    void SpawnEnemy(int count = 1, bool isHorde = false);
+    void dropPerk(float x, float y);
+
 private:
     void drawBackground();
     void drawEnemyHealthBars();
     void drawHUD();
-    void SpawnEnemy();
     void SpawnBoss();
     void moveEnemy(Enemy* e);
     void fireBullet(float mx, float my);
     void tryPickupPerks();
-    void dropPerk(float x, float y);
     bool detectCollision(Entity* a, Entity* b);
     void pushBack(Entity* e1, Entity* e2);
     void clampPlayer();

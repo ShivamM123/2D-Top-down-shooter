@@ -7,13 +7,13 @@
 Game::Game() {
     srand((unsigned)time(nullptr));
     filename=strdup("res/player.bmp"); filename2=strdup("res/enemy.bmp"); filename3=strdup("res/bullet.bmp");
-    player=new Player(60,60,5,filename,100); boss=nullptr;
+    player=new Player(60,60,5,filename,100); boss=nullptr; director=new AIDirector();
     score=0;killCount=0;gameMode=1;spawnTimer=0;activeWeapon=0;weaponTimer=0;
     shieldActive=false;shieldTimer=0;bossAlive=false;bossMaxHealth=800;
     nextBossKillThreshold=15;bgAnimTimer=0;perkDropCounter=0;waveFlashTimer=0;damageFlashTimer=0;
     player->setPositionX(400);player->setPositionY(300);
 }
-Game::~Game(){delete player;if(boss)delete boss;for(auto e:enemies)delete e;for(auto b:bullets)delete b;for(auto p:perks)delete p;}
+Game::~Game(){delete player;if(boss)delete boss;for(auto e:enemies)delete e;for(auto b:bullets)delete b;for(auto p:perks)delete p;delete director;}
 
 void Game::reset(){
     score=0;killCount=0;spawnTimer=0;activeWeapon=0;weaponTimer=0;shieldActive=false;shieldTimer=0;
@@ -25,35 +25,39 @@ void Game::reset(){
 }
 void Game::setGameMode(unsigned int m){gameMode=m;reset();}
 
-void Game::SpawnEnemy(){
+void Game::SpawnEnemy(int count, bool isHorde){
     int W=glutGet(GLUT_WINDOW_WIDTH),H=glutGet(GLUT_WINDOW_HEIGHT);
     if(W<100||H<100)return;
-    // Pick zombie type with weighted random
-    ZombieType type=ZOMBIE_WALKER;
-    int roll=rand()%100;
-    if(roll<35) type=ZOMBIE_WALKER;
-    else if(roll<55) type=ZOMBIE_RUNNER;
-    else if(roll<70) type=ZOMBIE_TANK;
-    else if(roll<80) type=ZOMBIE_WITCH;
-    else if(roll<90) type=ZOMBIE_SPITTER;
-    else type=ZOMBIE_LUNGER;
 
-    float spd,hp,dmg,sz;
-    switch(type){
-    case ZOMBIE_WALKER:  spd=0.9f;hp=80;dmg=12;sz=50;break;
-    case ZOMBIE_RUNNER:  spd=2.2f;hp=40;dmg=8;sz=40;break;
-    case ZOMBIE_TANK:    spd=0.5f;hp=250;dmg=25;sz=70;break;
-    case ZOMBIE_WITCH:   spd=0.7f;hp=60;dmg=35;sz=45;break;
-    case ZOMBIE_SPITTER: spd=0.8f;hp=70;dmg=15;sz=50;break;
-    case ZOMBIE_LUNGER:  spd=1.4f;hp=55;dmg=20;sz=42;break;
-    default:             spd=1.0f;hp=80;dmg=12;sz=50;break;
-    }
-    if(gameMode==0){spd*=0.7f;hp*=0.8f;dmg*=0.6f;}
-    if(gameMode==2){spd*=1.3f;hp*=1.2f;dmg*=1.4f;}
-    spd+=score*0.001f; hp+=killCount*0.3f;
-
-    int count=1+(killCount/40); if(count>3)count=3;
     for(int i=0;i<count;i++){
+        // Pick zombie type with weighted random
+        ZombieType type=ZOMBIE_WALKER;
+        if(isHorde) {
+            type=ZOMBIE_RUNNER; // Hordes are runners
+        } else {
+            int roll=rand()%100;
+            if(roll<35) type=ZOMBIE_WALKER;
+            else if(roll<55) type=ZOMBIE_RUNNER;
+            else if(roll<70) type=ZOMBIE_TANK;
+            else if(roll<80) type=ZOMBIE_WITCH;
+            else if(roll<90) type=ZOMBIE_SPITTER;
+            else type=ZOMBIE_LUNGER;
+        }
+
+        float spd,hp,dmg,sz;
+        switch(type){
+        case ZOMBIE_WALKER:  spd=0.9f;hp=80;dmg=12;sz=50;break;
+        case ZOMBIE_RUNNER:  spd=2.2f;hp=40;dmg=8;sz=40;break;
+        case ZOMBIE_TANK:    spd=0.5f;hp=250;dmg=25;sz=70;break;
+        case ZOMBIE_WITCH:   spd=0.7f;hp=60;dmg=35;sz=45;break;
+        case ZOMBIE_SPITTER: spd=0.8f;hp=70;dmg=15;sz=50;break;
+        case ZOMBIE_LUNGER:  spd=1.4f;hp=55;dmg=20;sz=42;break;
+        default:             spd=1.0f;hp=80;dmg=12;sz=50;break;
+        }
+        if(gameMode==0){spd*=0.7f;hp*=0.8f;dmg*=0.6f;}
+        if(gameMode==2){spd*=1.3f;hp*=1.2f;dmg*=1.4f;}
+        spd+=score*0.001f; hp+=killCount*0.3f;
+
         Enemy* e=new Enemy(sz,sz,spd,filename2,hp,dmg,type);
         float ex,ey; int side=rand()%4;
         if(side==0){ex=(float)(rand()%W);ey=-60;}
@@ -117,9 +121,9 @@ void Game::onKeyPressed(unsigned char key,int x,int y){if(key==27)glutLeaveMainL
 void Game::fireBullet(float mx,float my){
     float px=player->getPositionX()+player->getWidth()*0.5f,py=player->getPositionY()+player->getHeight()*0.5f;
     float ang=atan2f(my-py,mx-px);
-    if(activeWeapon==2){for(int i=-2;i<=2;i++)bullets.push_back(new Bullet(px,py,ang+i*0.18f,BULLET_FLAME));}
-    else if(activeWeapon==1){float p1=-sinf(ang)*5,p2=cosf(ang)*5;bullets.push_back(new Bullet(px+p1,py+p2,ang,BULLET_RAPID));bullets.push_back(new Bullet(px-p1,py-p2,ang,BULLET_RAPID));}
-    else bullets.push_back(new Bullet(px,py,ang,BULLET_PISTOL));
+    if(activeWeapon==2){for(int i=-2;i<=2;i++)bullets.push_back(new Bullet(px,py,ang+i*0.18f,BULLET_FLAME));director->reportShotFired();}
+    else if(activeWeapon==1){float p1=-sinf(ang)*5,p2=cosf(ang)*5;bullets.push_back(new Bullet(px+p1,py+p2,ang,BULLET_RAPID));bullets.push_back(new Bullet(px-p1,py-p2,ang,BULLET_RAPID));director->reportShotFired();}
+    else {bullets.push_back(new Bullet(px,py,ang,BULLET_PISTOL));director->reportShotFired();}
 }
 void Game::onMouseClicked(int b,int s,int x,int y){if(b==GLUT_LEFT_BUTTON&&s==GLUT_DOWN)fireBullet((float)x,(float)y);}
 void Game::onMouseMove(int x,int y){
@@ -147,13 +151,39 @@ void Game::tryPickupPerks(){
 
 bool Game::detectCollision(Entity* a,Entity* b){
     if(!a||!b)return false;
-    return(a->getPositionX()+a->getWidth()>=b->getPositionX()&&b->getPositionX()+b->getWidth()>=a->getPositionX()&&
-           a->getPositionY()+a->getHeight()>=b->getPositionY()&&b->getPositionY()+b->getHeight()>=a->getPositionY());
+    // Circle collision
+    float cx_a = a->getPositionX() + a->getWidth() * 0.5f;
+    float cy_a = a->getPositionY() + a->getHeight() * 0.5f;
+    float cx_b = b->getPositionX() + b->getWidth() * 0.5f;
+    float cy_b = b->getPositionY() + b->getHeight() * 0.5f;
+    float dx = cx_a - cx_b;
+    float dy = cy_a - cy_b;
+    float distSq = dx * dx + dy * dy;
+    float rad_a = a->getWidth() * 0.45f; // Slightly smaller radius for leniency
+    float rad_b = b->getWidth() * 0.45f;
+    float radiiSum = rad_a + rad_b;
+    return distSq < (radiiSum * radiiSum);
 }
 void Game::pushBack(Entity* e1,Entity* e2){
-    float dx=e2->getPositionX()-e1->getPositionX(),dy=e2->getPositionY()-e1->getPositionY();
-    float len=sqrtf(dx*dx+dy*dy);if(len<0.01f){dx=1;dy=0;len=1;}
-    e2->setPositionX(e2->getPositionX()+(dx/len)*30);e2->setPositionY(e2->getPositionY()+(dy/len)*30);
+    float cx1 = e1->getPositionX() + e1->getWidth() * 0.5f;
+    float cy1 = e1->getPositionY() + e1->getHeight() * 0.5f;
+    float cx2 = e2->getPositionX() + e2->getWidth() * 0.5f;
+    float cy2 = e2->getPositionY() + e2->getHeight() * 0.5f;
+    float dx = cx2 - cx1;
+    float dy = cy2 - cy1;
+    float len = sqrtf(dx * dx + dy * dy);
+    if(len < 0.01f){ dx = 1; dy = 0; len = 1; }
+    
+    // Push e2 away from e1 based on overlap
+    float rad1 = e1->getWidth() * 0.45f;
+    float rad2 = e2->getWidth() * 0.45f;
+    float overlap = (rad1 + rad2) - len;
+    if (overlap > 0) {
+        e2->setPositionX(e2->getPositionX() + (dx / len) * overlap * 0.5f);
+        e2->setPositionY(e2->getPositionY() + (dy / len) * overlap * 0.5f);
+        e1->setPositionX(e1->getPositionX() - (dx / len) * overlap * 0.5f);
+        e1->setPositionY(e1->getPositionY() - (dy / len) * overlap * 0.5f);
+    }
 }
 
 void Game::timer(void(*t)(int)){
@@ -163,10 +193,10 @@ void Game::timer(void(*t)(int)){
     if(waveFlashTimer>0)waveFlashTimer--;
     if(damageFlashTimer>0)damageFlashTimer--;
 
-    spawnTimer++;
-    int spawnRate=(gameMode==0)?130:(gameMode==2)?60:85;
-    if(spawnTimer>=spawnRate&&!bossAlive){SpawnEnemy();spawnTimer=0;}
-    if(killCount==0&&enemies.empty()&&!bossAlive&&spawnTimer<2)SpawnEnemy();
+    // Update AI Director
+    if(!bossAlive) {
+        director->update(this, player, enemies);
+    }
 
     for(auto it=perks.begin();it!=perks.end();){(*it)->update();if((*it)->isExpired()){delete *it;it=perks.erase(it);}else ++it;}
 
@@ -214,7 +244,16 @@ void Game::timer(void(*t)(int)){
             if(detectCollision(player,*eIt)){
                 if(shieldActive){shieldActive=false;shieldTimer=0;}
                 else{player->setHealth(player->getHealth()-(*eIt)->getDamage()*0.03f);damageFlashTimer=6;pushBack(*eIt,player);if(player->getHealth()<=0)exit(0);}
-            }++eIt;
+            }
+            
+            // Check collision against other enemies (flocking separation)
+            for(auto otherIt = enemies.begin(); otherIt != enemies.end(); ++otherIt) {
+                if (*eIt != *otherIt && detectCollision(*eIt, *otherIt)) {
+                    pushBack(*otherIt, *eIt);
+                }
+            }
+            
+            ++eIt;
         }
     }
     tryPickupPerks();glutPostRedisplay();glutTimerFunc(10,t,0);
@@ -261,42 +300,88 @@ void Game::drawHUD(){
     glMatrixMode(GL_PROJECTION);glPushMatrix();glLoadIdentity();glOrtho(0,W,H,0,-1,1);
     glMatrixMode(GL_MODELVIEW);glPushMatrix();glLoadIdentity();
     char buf[80];
-    // Panel
-    glColor3f(0.06f,0.08f,0.11f);fillRect(8,8,280,95);
-    glColor3f(0.25f,0.35f,0.50f);glLineWidth(2.0f);outlineRect(8,8,280,95);glLineWidth(1.0f);
-    // Score
-    glColor3f(1.0f,0.85f,0.15f);sprintf(buf,"SCORE  %d",score);renderText(18,26,GLUT_BITMAP_HELVETICA_18,buf);
-    // Kills + enemies
-    glColor3f(0.75f,0.75f,0.75f);sprintf(buf,"KILLS %d  |  ALIVE %d",killCount,(int)enemies.size()+(bossAlive?1:0));
-    renderText(18,44,GLUT_BITMAP_HELVETICA_12,buf);
-    // HP bar
-    float maxHp=(gameMode==0)?140:(gameMode==2)?70:100;float hpPct=player->getHealth()/maxHp;
-    hpPct=hpPct<0?0:(hpPct>1?1:hpPct);float bw=220;
-    glColor3f(0.5f,0.5f,0.5f);renderText(18,62,GLUT_BITMAP_HELVETICA_12,"HP");
-    glColor3f(0.25f,0.0f,0.0f);fillRect(38,53,bw,12);
-    float r2=hpPct<0.5f?1:2*(1-hpPct),g2=hpPct>0.5f?1:2*hpPct;
-    glColor3f(r2,g2,0);fillRect(38,53,bw*hpPct,12);glColor3f(0.6f,0.6f,0.6f);outlineRect(38,53,bw,12);
-    // Weapon
-    const char*wn="PISTOL";float wr=1,wg=1,wb=0.2f;
-    if(activeWeapon==1){wn="RAPID FIRE";wr=0.1f;wg=0.95f;wb=1.0f;}
-    if(activeWeapon==2){wn="FLAMETHROWER";wr=1.0f;wg=0.4f;wb=0.0f;}
-    glColor3f(wr,wg,wb);sprintf(buf,"GUN: %s",wn);renderText(18,82,GLUT_BITMAP_HELVETICA_10,buf);
-    if(shieldActive){glColor3f(0.3f,0.7f,1.0f);renderText(140,82,GLUT_BITMAP_HELVETICA_10,"SHIELD");}
-    // Wave flash
-    if(waveFlashTimer>0){float a=(float)waveFlashTimer/120.0f;glColor3f(a,0.2f*a,0.2f*a);
-        renderTextC((float)(W/2),(float)(H/2)-20,GLUT_BITMAP_TIMES_ROMAN_24,bossAlive?"!! BOSS INCOMING !!":"BOSS DEFEATED!");}
-    // Boss warning
-    int bossIn=nextBossKillThreshold-killCount;
-    if(bossIn<=5&&bossIn>0&&!bossAlive){float p=0.6f+0.4f*sinf(bgAnimTimer*5);glColor3f(p,0.1f,0.1f);
-        sprintf(buf,"BOSS IN %d KILLS",bossIn);renderTextC((float)(W/2),18,GLUT_BITMAP_HELVETICA_18,buf);}
-    // Boss HP
-    if(bossAlive&&boss){float bHp=boss->getHealth()/bossMaxHealth;if(bHp<0)bHp=0;float bBarW=400,bBarX=(W-bBarW)/2.0f;
-        glColor3f(0.06f,0.02f,0.02f);fillRect(bBarX-2,6,bBarW+4,26);
-        glColor3f(0.35f,0,0);fillRect(bBarX,8,bBarW,22);glColor3f(1-bHp*0.3f,0.1f,0.1f);
-        fillRect(bBarX,8,bBarW*bHp,22);glColor3f(1,0.4f,0.4f);outlineRect(bBarX,8,bBarW,22);
-        glColor3f(1,0.8f,0.8f);renderTextC(bBarX+bBarW/2,22,GLUT_BITMAP_HELVETICA_12,"BOSS");}
-    // Controls
-    glColor3f(0.3f,0.38f,0.48f);renderText((float)(W-260),(float)(H-10),GLUT_BITMAP_HELVETICA_10,"WASD:Move  LMB:Shoot  ESC:Menu");
+    
+    // Modern L4D2 Style HUD at the bottom left
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    // Sleek translucent background panel
+    glColor4f(0.05f,0.05f,0.05f,0.7f);
+    fillRect(20, H - 120, 320, 100);
+    
+    // Subtle border
+    glColor4f(0.4f,0.4f,0.4f,0.5f);
+    glLineWidth(2.0f);
+    outlineRect(20, H - 120, 320, 100);
+    glLineWidth(1.0f);
+
+    // Score & Kills
+    glColor4f(0.9f,0.9f,0.9f, 1.0f);
+    sprintf(buf,"SCORE: %d",score);
+    renderText(35, H - 95, GLUT_BITMAP_HELVETICA_18, buf);
+    
+    glColor4f(0.6f,0.6f,0.6f, 1.0f);
+    sprintf(buf,"KILLS: %d  |  ALIVE: %d",killCount,(int)enemies.size()+(bossAlive?1:0));
+    renderText(35, H - 75, GLUT_BITMAP_HELVETICA_12, buf);
+    
+    // Modern Healthbar
+    float maxHp=(gameMode==0)?140:(gameMode==2)?70:100;
+    float hpPct=player->getHealth()/maxHp;
+    hpPct=hpPct<0?0:(hpPct>1?1:hpPct);
+    float bw=280;
+    
+    glColor4f(0.2f,0.0f,0.0f, 0.8f); // Dark red background
+    fillRect(35, H - 60, bw, 18);
+    
+    // Dynamic color (Green -> Yellow -> Red)
+    float rColor = (hpPct > 0.5f) ? (1.0f - (hpPct - 0.5f) * 2.0f) : 1.0f;
+    float gColor = (hpPct > 0.5f) ? 1.0f : (hpPct * 2.0f);
+    float bColor = 0.1f;
+    
+    glColor4f(rColor, gColor, bColor, 0.9f);
+    fillRect(35, H - 60, bw * hpPct, 18);
+    
+    // Glossy overlay for healthbar
+    glColor4f(1.0f, 1.0f, 1.0f, 0.2f);
+    fillRect(35, H - 60, bw * hpPct, 9);
+    
+    glColor4f(0.8f,0.8f,0.8f, 1.0f);
+    outlineRect(35, H - 60, bw, 18);
+    
+    // Weapon info
+    const char*wn="PISTOL";float wr=0.8f,wg=0.8f,wb=0.8f;
+    if(activeWeapon==1){wn="SMG (RAPID)";wr=0.4f;wg=0.8f;wb=1.0f;}
+    if(activeWeapon==2){wn="FLAMETHROWER";wr=1.0f;wg=0.5f;wb=0.1f;}
+    glColor4f(wr,wg,wb, 1.0f);
+    sprintf(buf,"WEAPON: %s",wn);
+    renderText(35, H - 30, GLUT_BITMAP_HELVETICA_12, buf);
+
+    if(shieldActive){
+        glColor4f(0.2f,0.6f,1.0f, 1.0f);
+        renderText(180, H - 30, GLUT_BITMAP_HELVETICA_12,"SHIELD ACTIVE");
+    }
+
+    // Stress Level Indicator (AI Director)
+    float stress = director->getStressLevel();
+    glColor4f(0.8f, 0.2f, 0.2f, 0.8f);
+    sprintf(buf,"DIRECTOR STRESS: %d%%", (int)(stress * 100));
+    renderText(20, 25, GLUT_BITMAP_HELVETICA_10, buf);
+
+    // Wave/Boss flash
+    if(waveFlashTimer>0){
+        float a=(float)waveFlashTimer/120.0f;
+        glColor4f(1.0f, 0.2f, 0.2f, a);
+        renderTextC((float)(W/2),(float)(H/2)-20,GLUT_BITMAP_TIMES_ROMAN_24,bossAlive?"!! BOSS INCOMING !!":"BOSS DEFEATED!");
+    }
+    
+    // Damage vignette
+    if(damageFlashTimer>0){
+        float a=(float)damageFlashTimer/10.0f * 0.5f;
+        glColor4f(1.0f, 0.0f, 0.0f, a);
+        fillRect(0,0,W,H); // Red flash over screen
+    }
+
+    glDisable(GL_BLEND);
     glMatrixMode(GL_PROJECTION);glPopMatrix();glMatrixMode(GL_MODELVIEW);glPopMatrix();
 }
 
@@ -312,6 +397,80 @@ void Game::draw(){
     drawEnemyHealthBars();
     for(auto b:bullets)b->draw();
     player->draw();
+    
+    // Dynamic Flashlight Overlay
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    float px = player->getPositionX() + player->getWidth() * 0.5f;
+    float py = player->getPositionY() + player->getHeight() * 0.5f;
+    
+    int numSegments = 72;
+    float outerRadius = 3000.0f;
+    float fov = 65.0f;
+    float pAngle = player->getAngle();
+
+    while(pAngle < 0) pAngle += 360.0f;
+    while(pAngle >= 360) pAngle -= 360.0f;
+    
+    auto getLightRadius = [&](float a) {
+        float diff = fmod(abs(a - pAngle), 360.0f);
+        if (diff > 180.0f) diff = 360.0f - diff;
+        
+        if (diff < fov / 2.0f) {
+            return 700.0f; 
+        } else if (diff < fov / 2.0f + 20.0f) {
+            float t = (diff - fov / 2.0f) / 20.0f;
+            return 700.0f * (1.0f - t) + 120.0f * t;
+        } else {
+            return 120.0f;
+        }
+    };
+
+    // 1. Draw outer solid darkness
+    glBegin(GL_QUADS);
+    for (int i = 0; i < numSegments; ++i) {
+        float angle1 = (i * 360.0f / numSegments);
+        float angle2 = ((i + 1) * 360.0f / numSegments);
+        
+        float r1 = getLightRadius(angle1);
+        float r2 = getLightRadius(angle2);
+        
+        float a1_rad = angle1 * 3.14159f / 180.0f;
+        float a2_rad = angle2 * 3.14159f / 180.0f;
+
+        glColor4f(0.01f, 0.01f, 0.02f, 0.96f);
+        glVertex2f(px + r1 * cosf(a1_rad), py + r1 * sinf(a1_rad));
+        glVertex2f(px + r2 * cosf(a2_rad), py + r2 * sinf(a2_rad));
+        glVertex2f(px + outerRadius * cosf(a2_rad), py + outerRadius * sinf(a2_rad));
+        glVertex2f(px + outerRadius * cosf(a1_rad), py + outerRadius * sinf(a1_rad));
+    }
+    glEnd();
+
+    // 2. Draw soft inner gradient (light to dark)
+    glBegin(GL_TRIANGLES);
+    for (int i = 0; i < numSegments; ++i) {
+        float angle1 = (i * 360.0f / numSegments);
+        float angle2 = ((i + 1) * 360.0f / numSegments);
+        
+        float r1 = getLightRadius(angle1);
+        float r2 = getLightRadius(angle2);
+        
+        float a1_rad = angle1 * 3.14159f / 180.0f;
+        float a2_rad = angle2 * 3.14159f / 180.0f;
+
+        // Center is fully transparent
+        glColor4f(0.01f, 0.01f, 0.02f, 0.0f);
+        glVertex2f(px, py);
+        
+        // Edge is fully dark
+        glColor4f(0.01f, 0.01f, 0.02f, 0.96f);
+        glVertex2f(px + r1 * cosf(a1_rad), py + r1 * sinf(a1_rad));
+        glVertex2f(px + r2 * cosf(a2_rad), py + r2 * sinf(a2_rad));
+    }
+    glEnd();
+
+    glDisable(GL_BLEND);
+
     drawHUD();
     glutSwapBuffers();
 }
