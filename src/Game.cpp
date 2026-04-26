@@ -8,12 +8,16 @@ Game::Game() {
     srand((unsigned)time(nullptr));
     filename=strdup("res/player.bmp"); filename2=strdup("res/enemy.bmp"); filename3=strdup("res/bullet.bmp");
     player=new Player(60,60,5,filename,100); boss=nullptr; director=new AIDirector();
+    campaign=new CampaignManager();
     score=0;killCount=0;gameMode=1;spawnTimer=0;activeWeapon=0;weaponTimer=0;
     shieldActive=false;shieldTimer=0;bossAlive=false;bossMaxHealth=800;
     nextBossKillThreshold=15;bgAnimTimer=0;perkDropCounter=0;waveFlashTimer=0;damageFlashTimer=0;
+    screenShakeX=0;screenShakeY=0;screenShakeIntensity=0;
+    mouseHeld=false;mouseX=0;mouseY=0;fireRateTimer=0;
+    ammo=30;maxAmmo=30;reloading=false;reloadTimer=0;reloadDuration=120;
     player->setPositionX(400);player->setPositionY(300);
 }
-Game::~Game(){delete player;if(boss)delete boss;for(auto e:enemies)delete e;for(auto b:bullets)delete b;for(auto p:perks)delete p;delete director;}
+Game::~Game(){delete player;if(boss)delete boss;for(auto e:enemies)delete e;for(auto b:bullets)delete b;for(auto p:perks)delete p;delete director;delete campaign;}
 
 void Game::reset(){
     score=0;killCount=0;spawnTimer=0;activeWeapon=0;weaponTimer=0;shieldActive=false;shieldTimer=0;
@@ -111,7 +115,9 @@ void Game::moveEnemy(Enemy* e){
         if(ll>10){dx=ldx/ll;dy=ldy/ll;} else e->specialActive=false;
     }
 
-    if(Boss* b=dynamic_cast<Boss*>(e)){b->updateCharge(player->getPositionX(),player->getPositionY());spd=b->getEffectiveSpeed();}
+    // Boss is updated separately in Game::timer via boss->update()
+    if(dynamic_cast<Boss*>(e)) return;
+
     e->setPositionX(e->getPositionX()+dx*spd);
     e->setPositionY(e->getPositionY()+dy*spd);
     e->setAngle(atan2f(dy,dx)*180.0f/3.14159f);
@@ -119,19 +125,59 @@ void Game::moveEnemy(Enemy* e){
 
 void Game::onKeyPressed(unsigned char key,int x,int y){if(key==27)glutLeaveMainLoop();}
 void Game::fireBullet(float mx,float my){
+    // Can't fire while reloading or out of ammo
+    if(reloading) return;
+    if(ammo <= 0) { reloading=true; reloadTimer=0; return; }
+
     float px=player->getPositionX()+player->getWidth()*0.5f,py=player->getPositionY()+player->getHeight()*0.5f;
     float ang=atan2f(my-py,mx-px);
-    if(activeWeapon==2){for(int i=-2;i<=2;i++)bullets.push_back(new Bullet(px,py,ang+i*0.18f,BULLET_FLAME));director->reportShotFired();}
-    else if(activeWeapon==1){float p1=-sinf(ang)*5,p2=cosf(ang)*5;bullets.push_back(new Bullet(px+p1,py+p2,ang,BULLET_RAPID));bullets.push_back(new Bullet(px-p1,py-p2,ang,BULLET_RAPID));director->reportShotFired();}
-    else {bullets.push_back(new Bullet(px,py,ang,BULLET_PISTOL));director->reportShotFired();}
+    if(activeWeapon==2){
+        for(int i=-2;i<=2;i++)bullets.push_back(new Bullet(px,py,ang+i*0.18f,BULLET_FLAME));
+        ammo-=5; director->reportShotFired();
+    }
+    else if(activeWeapon==1){
+        float p1=-sinf(ang)*5,p2=cosf(ang)*5;
+        bullets.push_back(new Bullet(px+p1,py+p2,ang,BULLET_RAPID));
+        bullets.push_back(new Bullet(px-p1,py-p2,ang,BULLET_RAPID));
+        ammo-=2; director->reportShotFired();
+    }
+    else {
+        bullets.push_back(new Bullet(px,py,ang,BULLET_PISTOL));
+        ammo--; director->reportShotFired();
+    }
+    if(ammo<0) ammo=0;
+    // Auto-reload when clip empty
+    if(ammo<=0){ reloading=true; reloadTimer=0; }
 }
-void Game::onMouseClicked(int b,int s,int x,int y){if(b==GLUT_LEFT_BUTTON&&s==GLUT_DOWN)fireBullet((float)x,(float)y);}
+void Game::onMouseClicked(int b,int s,int x,int y){
+    if(b==GLUT_LEFT_BUTTON){
+        if(s==GLUT_DOWN){
+            mouseHeld=true;
+            mouseX=(float)x; mouseY=(float)y;
+            fireBullet((float)x,(float)y);
+            fireRateTimer=0;
+        } else {
+            mouseHeld=false;
+        }
+    }
+}
 void Game::onMouseMove(int x,int y){
     float px=player->getPositionX()+player->getWidth()*0.5f,py=player->getPositionY()+player->getHeight()*0.5f;
     player->setAngle(atan2f((float)y-py,(float)x-px)*180.0f/3.14159f);
+    mouseX=(float)x; mouseY=(float)y;
 }
 
-void Game::dropPerk(float x,float y){PerkType t[]={PERK_HEALTH,PERK_SHIELD,PERK_BETTER_GUN,PERK_FLAMETHROWER};perks.push_back(new Perk(x,y,t[rand()%4]));}
+void Game::dropPerk(float x,float y){
+    // 40% chance ammo, 30% health, 15% shield, 10% rapid, 5% flame
+    int roll = rand()%100;
+    PerkType t;
+    if(roll < 40) t = PERK_AMMO;
+    else if(roll < 70) t = PERK_HEALTH;
+    else if(roll < 85) t = PERK_SHIELD;
+    else if(roll < 95) t = PERK_BETTER_GUN;
+    else t = PERK_FLAMETHROWER;
+    perks.push_back(new Perk(x,y,t));
+}
 void Game::tryPickupPerks(){
     float px=player->getPositionX(),py=player->getPositionY(),pw=player->getWidth(),ph=player->getHeight();
     for(auto it=perks.begin();it!=perks.end();){
@@ -143,6 +189,7 @@ void Game::tryPickupPerks(){
             case PERK_SHIELD:shieldActive=true;shieldTimer=1500;break;
             case PERK_BETTER_GUN:activeWeapon=1;weaponTimer=2500;break;
             case PERK_FLAMETHROWER:activeWeapon=2;weaponTimer=2500;break;
+            case PERK_AMMO:{ammo+=15;if(ammo>maxAmmo)ammo=maxAmmo;reloading=false;break;}
             }
             delete p;it=perks.erase(it);
         }else ++it;
@@ -193,33 +240,130 @@ void Game::timer(void(*t)(int)){
     if(waveFlashTimer>0)waveFlashTimer--;
     if(damageFlashTimer>0)damageFlashTimer--;
 
-    // Update AI Director
-    if(!bossAlive) {
+    // Auto-fire while mouse held
+    if(mouseHeld && !reloading){
+        fireRateTimer++;
+        int rate = (activeWeapon==1) ? 8 : (activeWeapon==2) ? 12 : 20; // slower rates
+        if(fireRateTimer >= rate){
+            fireBullet(mouseX, mouseY);
+            fireRateTimer=0;
+        }
+    }
+
+    // Auto-reload
+    if(reloading){
+        reloadTimer++;
+        if(reloadTimer >= reloadDuration){
+            ammo = maxAmmo;
+            reloading = false;
+            reloadTimer = 0;
+        }
+    }
+
+    // Campaign Manager drives spawning instead of pure AI Director
+    int W=glutGet(GLUT_WINDOW_WIDTH),H=glutGet(GLUT_WINDOW_HEIGHT);
+
+    // Init waypoints on first frame (need screen size)
+    if(!campaign->waypointsInitialized()) {
+        campaign->initWaypoints(W, H);
+    }
+
+    // Campaign update — returns how many enemies to spawn this frame
+    if(!campaign->isCampaignWon()) {
+        int campaignSpawns = campaign->update(
+            player->getPositionX(), player->getPositionY(),
+            player->getWidth(), player->getHeight(), W, H);
+        if(campaignSpawns > 0) {
+            SpawnEnemy(campaignSpawns, campaign->isHoldoutActive());
+        }
+    }
+
+    // AI Director supplements campaign spawning during non-holdout
+    if(!bossAlive && !campaign->isHoldoutActive() && campaign->getAct() != ACT_VICTORY) {
         director->update(this, player, enemies);
     }
 
     for(auto it=perks.begin();it!=perks.end();){(*it)->update();if((*it)->isExpired()){delete *it;it=perks.erase(it);}else ++it;}
 
-    int W=glutGet(GLUT_WINDOW_WIDTH),H=glutGet(GLUT_WINDOW_HEIGHT);
     for(auto it=bullets.begin();it!=bullets.end();){
         (*it)->moveBullet();float bx=(*it)->getPositionX(),by=(*it)->getPositionY();
         if(bx<-50||bx>W+50||by<-50||by>H+50){delete *it;it=bullets.erase(it);}else ++it;
     }
 
-    if(killCount>=nextBossKillThreshold&&!bossAlive){for(auto e:enemies)delete e;enemies.clear();SpawnBoss();nextBossKillThreshold+=15;}
+    // Boss spawns during holdout at a certain kill count, but not in victory
+    if(killCount>=nextBossKillThreshold&&!bossAlive&&campaign->getAct()!=ACT_VICTORY){
+        SpawnBoss();
+        nextBossKillThreshold=killCount+25;
+    }
 
     if(bossAlive&&boss){
-        moveEnemy(boss);
+        int W2=glutGet(GLUT_WINDOW_WIDTH),H2=glutGet(GLUT_WINDOW_HEIGHT);
+        boss->update(player->getPositionX()+player->getWidth()*0.5f,
+                     player->getPositionY()+player->getHeight()*0.5f, W2, H2);
+
+        // Pull screen shake from boss
+        float bossShake = boss->getShakeIntensity();
+        if(bossShake > screenShakeIntensity) screenShakeIntensity = bossShake;
+        boss->resetShake();
+
+        // Move boss (unless charge moves it internally)
+        float bspd = boss->getEffectiveSpeed();
+        if(bspd > 0.01f) {
+            float bdx,bdy;
+            boss->getMovementDirection(player->getPositionX()+player->getWidth()*0.5f,
+                                       player->getPositionY()+player->getHeight()*0.5f, bdx, bdy);
+            boss->setPositionX(boss->getPositionX()+bdx*bspd);
+            boss->setPositionY(boss->getPositionY()+bdy*bspd);
+            boss->setAngle(atan2f(bdy,bdx)*180.0f/3.14159f);
+        }
+
+        // Bullet hits on boss
         for(auto bIt=bullets.begin();bIt!=bullets.end();){
             if(detectCollision(boss,*bIt)){
-                boss->setHealth(boss->getHealth()-(*bIt)->getDamage());delete *bIt;bIt=bullets.erase(bIt);
-                if(boss->getHealth()<=0){dropPerk(boss->getPositionX(),boss->getPositionY());dropPerk(boss->getPositionX()+30,boss->getPositionY());
-                    score+=200;killCount++;delete boss;boss=nullptr;bossAlive=false;waveFlashTimer=180;break;}
+                float dmg = (*bIt)->getDamage();
+                boss->setHealth(boss->getHealth()-dmg);
+                boss->onDamaged(dmg);
+                delete *bIt;bIt=bullets.erase(bIt);
+                if(boss->getHealth()<=0){
+                    dropPerk(boss->getPositionX(),boss->getPositionY());
+                    dropPerk(boss->getPositionX()+30,boss->getPositionY());
+                    dropPerk(boss->getPositionX()-30,boss->getPositionY()+20);
+                    score+=500;killCount++;screenShakeIntensity=20;
+                    delete boss;boss=nullptr;bossAlive=false;waveFlashTimer=180;
+                    break;
+                }
             }else ++bIt;
         }
+
+        // Boss melee damage on player (knockback on player only, boss is immune)
         if(bossAlive&&boss&&detectCollision(player,boss)){
             if(shieldActive){shieldActive=false;shieldTimer=0;}
-            else{player->setHealth(player->getHealth()-boss->getDamage()*0.06f);damageFlashTimer=10;pushBack(boss,player);if(player->getHealth()<=0)exit(0);}
+            else{
+                float dmgMult = (boss->getAction()==BOSS_ACTION_CHARGE) ? 0.15f : 0.06f;
+                player->setHealth(player->getHealth()-boss->getDamage()*dmgMult);
+                damageFlashTimer=12;
+                screenShakeIntensity=8;
+                // Push ONLY the player (boss is knockback immune)
+                float pdx=player->getPositionX()-boss->getPositionX();
+                float pdy=player->getPositionY()-boss->getPositionY();
+                float plen=sqrtf(pdx*pdx+pdy*pdy);
+                if(plen<0.01f){pdx=1;pdy=0;plen=1;}
+                float pushDist = (boss->getAction()==BOSS_ACTION_CHARGE) ? 80.0f : 40.0f;
+                player->setPositionX(player->getPositionX()+(pdx/plen)*pushDist);
+                player->setPositionY(player->getPositionY()+(pdy/plen)*pushDist);
+                clampPlayer();
+                if(player->getHealth()<=0)exit(0);
+            }
+        }
+
+        // Boss projectile collision with player
+        handleBossProjectiles();
+
+        // Phase 3: Swarm spawn
+        if(bossAlive&&boss&&boss->needsSwarmSpawn()){
+            SpawnEnemy(boss->getSwarmCount(), true);
+            boss->markSwarmSpawned();
+            waveFlashTimer=120;
         }
     }
 
@@ -256,7 +400,47 @@ void Game::timer(void(*t)(int)){
             ++eIt;
         }
     }
-    tryPickupPerks();glutPostRedisplay();glutTimerFunc(10,t,0);
+    tryPickupPerks();
+    updateScreenShake();
+    glutPostRedisplay();glutTimerFunc(10,t,0);
+}
+
+void Game::updateScreenShake() {
+    if (screenShakeIntensity > 0.1f) {
+        screenShakeX = ((rand()%100)/50.0f - 1.0f) * screenShakeIntensity;
+        screenShakeY = ((rand()%100)/50.0f - 1.0f) * screenShakeIntensity;
+        screenShakeIntensity *= 0.9f;
+    } else {
+        screenShakeX = 0;
+        screenShakeY = 0;
+        screenShakeIntensity = 0;
+    }
+}
+
+void Game::handleBossProjectiles() {
+    if (!boss || !bossAlive) return;
+    auto& projs = boss->getProjectiles();
+    float px = player->getPositionX() + player->getWidth()*0.5f;
+    float py = player->getPositionY() + player->getHeight()*0.5f;
+    float prad = player->getWidth() * 0.4f;
+
+    for (auto& p : projs) {
+        if (!p.active) continue;
+        float dx = px - p.x;
+        float dy = py - p.y;
+        float dist = sqrtf(dx*dx + dy*dy);
+        if (dist < prad + p.radius) {
+            // Hit!
+            if (shieldActive) { shieldActive = false; shieldTimer = 0; }
+            else {
+                player->setHealth(player->getHealth() - p.damage);
+                damageFlashTimer = 12;
+                screenShakeIntensity = 6;
+                if (player->getHealth() <= 0) exit(0);
+            }
+            p.active = false;
+        }
+    }
 }
 
 // Drawing
@@ -356,6 +540,38 @@ void Game::drawHUD(){
     sprintf(buf,"WEAPON: %s",wn);
     renderText(35, H - 30, GLUT_BITMAP_HELVETICA_12, buf);
 
+    // Ammo counter (bottom right)
+    glColor4f(0.05f,0.05f,0.05f,0.7f);
+    fillRect(W - 180, H - 80, 160, 60);
+    glColor4f(0.4f,0.4f,0.4f,0.5f);
+    outlineRect(W - 180, H - 80, 160, 60);
+
+    if(reloading){
+        // Flashing RELOAD
+        float flash = 0.5f + 0.5f * sinf(bgAnimTimer * 8.0f);
+        glColor4f(1.0f, 0.2f, 0.2f, flash);
+        renderText(W - 160, H - 55, GLUT_BITMAP_HELVETICA_18, "RELOADING...");
+        // Reload progress bar
+        float reloadPct = (float)reloadTimer / (float)reloadDuration;
+        glColor4f(0.3f,0.3f,0.3f,0.8f);
+        fillRect(W - 170, H - 38, 140, 10);
+        glColor4f(1.0f, 0.6f, 0.1f, 0.9f);
+        fillRect(W - 170, H - 38, 140 * reloadPct, 10);
+    } else {
+        // Ammo count
+        float ammoPct = (float)ammo / (float)maxAmmo;
+        if(ammoPct < 0.25f)
+            glColor4f(1.0f, 0.2f, 0.2f, 1.0f); // Red when low
+        else if(ammoPct < 0.5f)
+            glColor4f(1.0f, 0.8f, 0.2f, 1.0f); // Yellow
+        else
+            glColor4f(0.9f, 0.9f, 0.9f, 1.0f); // White
+        sprintf(buf, "%d / %d", ammo, maxAmmo);
+        renderText(W - 155, H - 55, GLUT_BITMAP_HELVETICA_18, buf);
+        glColor4f(0.6f,0.6f,0.6f,0.8f);
+        renderText(W - 155, H - 35, GLUT_BITMAP_HELVETICA_10, "AMMO");
+    }
+
     if(shieldActive){
         glColor4f(0.2f,0.6f,1.0f, 1.0f);
         renderText(180, H - 30, GLUT_BITMAP_HELVETICA_12,"SHIELD ACTIVE");
@@ -370,8 +586,67 @@ void Game::drawHUD(){
     // Wave/Boss flash
     if(waveFlashTimer>0){
         float a=(float)waveFlashTimer/120.0f;
-        glColor4f(1.0f, 0.2f, 0.2f, a);
-        renderTextC((float)(W/2),(float)(H/2)-20,GLUT_BITMAP_TIMES_ROMAN_24,bossAlive?"!! BOSS INCOMING !!":"BOSS DEFEATED!");
+        if (bossAlive && boss) {
+            // Show phase-specific flash text
+            const char* flashMsg = "!! BOSS INCOMING !!";
+            if (boss->getPhase() == BOSS_PHASE_ENRAGE) flashMsg = "!! THE TANK IS ENRAGED !!";
+            else if (boss->getPhase() == BOSS_PHASE_DESPERATION) flashMsg = "!! SWARM INCOMING !!";
+            glColor4f(1.0f, 0.2f, 0.2f, a);
+            renderTextC((float)(W/2),(float)(H/2)-20,GLUT_BITMAP_TIMES_ROMAN_24, flashMsg);
+        } else {
+            glColor4f(0.3f, 1.0f, 0.3f, a);
+            renderTextC((float)(W/2),(float)(H/2)-20,GLUT_BITMAP_TIMES_ROMAN_24, "BOSS DEFEATED!");
+        }
+    }
+
+    // Boss HP bar (top center, L4D2 style)
+    if(bossAlive&&boss){
+        float bHp=boss->getHealth()/bossMaxHealth;if(bHp<0)bHp=0;
+        float bBarW=450,bBarH=28,bBarX=(W-bBarW)/2.0f,bBarY=15;
+
+        // Background
+        glColor4f(0.03f,0.01f,0.01f, 0.85f);
+        fillRect(bBarX-4, bBarY-4, bBarW+8, bBarH+8);
+
+        // Dark inner
+        glColor4f(0.15f,0.0f,0.0f, 0.9f);
+        fillRect(bBarX, bBarY, bBarW, bBarH);
+
+        // HP fill — color depends on phase
+        if (boss->getPhase() == BOSS_PHASE_DESPERATION)
+            glColor4f(0.7f, 0.0f, 0.7f, 0.9f);  // Purple
+        else if (boss->getPhase() == BOSS_PHASE_ENRAGE)
+            glColor4f(1.0f, 0.35f, 0.0f, 0.9f);  // Orange
+        else
+            glColor4f(0.8f, 0.1f, 0.1f, 0.9f);   // Red
+
+        fillRect(bBarX, bBarY, bBarW*bHp, bBarH);
+
+        // Glossy highlight
+        glColor4f(1.0f,1.0f,1.0f, 0.15f);
+        fillRect(bBarX, bBarY, bBarW*bHp, bBarH/2);
+
+        // Border
+        glColor4f(0.8f,0.3f,0.3f, 0.8f);
+        glLineWidth(2.0f);
+        outlineRect(bBarX, bBarY, bBarW, bBarH);
+        glLineWidth(1.0f);
+
+        // Phase markers (vertical lines at 50% and 15%)
+        glColor4f(1.0f,1.0f,0.0f, 0.6f);
+        float mark50 = bBarX + bBarW * 0.50f;
+        float mark15 = bBarX + bBarW * 0.15f;
+        glBegin(GL_LINES);
+        glVertex2f(mark50, bBarY); glVertex2f(mark50, bBarY+bBarH);
+        glVertex2f(mark15, bBarY); glVertex2f(mark15, bBarY+bBarH);
+        glEnd();
+
+        // Label
+        const char* phaseLabel = "THE TANK";
+        if (boss->getPhase() == BOSS_PHASE_ENRAGE) phaseLabel = "THE TANK - ENRAGED";
+        else if (boss->getPhase() == BOSS_PHASE_DESPERATION) phaseLabel = "THE TANK - DESPERATE";
+        glColor4f(1.0f,0.9f,0.8f, 1.0f);
+        renderTextC(bBarX+bBarW/2, bBarY+bBarH-8, GLUT_BITMAP_HELVETICA_12, phaseLabel);
     }
     
     // Damage vignette
@@ -390,7 +665,17 @@ void Game::draw(){
     int W=glutGet(GLUT_WINDOW_WIDTH),H=glutGet(GLUT_WINDOW_HEIGHT);
     glMatrixMode(GL_PROJECTION);glLoadIdentity();glOrtho(0,W,H,0,-1,1);
     glMatrixMode(GL_MODELVIEW);glLoadIdentity();
+    
+    // Apply screen shake offset
+    if (screenShakeIntensity > 0.1f) {
+        glTranslatef(screenShakeX, screenShakeY, 0);
+    }
+    
     drawBackground();
+    
+    // Draw campaign waypoints (in world space, affected by screen shake)
+    campaign->drawWaypoints();
+    
     for(auto p:perks)p->draw();
     for(auto e:enemies)e->draw();
     if(bossAlive&&boss)boss->draw();
@@ -472,5 +757,16 @@ void Game::draw(){
     glDisable(GL_BLEND);
 
     drawHUD();
+
+    // Draw campaign objectives & dialog (HUD layer, not affected by flashlight)
+    {
+        int cW=glutGet(GLUT_WINDOW_WIDTH),cH=glutGet(GLUT_WINDOW_HEIGHT);
+        glMatrixMode(GL_PROJECTION);glPushMatrix();glLoadIdentity();glOrtho(0,cW,cH,0,-1,1);
+        glMatrixMode(GL_MODELVIEW);glPushMatrix();glLoadIdentity();
+        campaign->drawObjectives(cW, cH);
+        campaign->drawDialog(cW, cH);
+        glMatrixMode(GL_PROJECTION);glPopMatrix();glMatrixMode(GL_MODELVIEW);glPopMatrix();
+    }
+
     glutSwapBuffers();
 }

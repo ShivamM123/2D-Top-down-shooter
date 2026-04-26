@@ -6,7 +6,8 @@ enum PerkType {
     PERK_HEALTH,
     PERK_SHIELD,
     PERK_BETTER_GUN,
-    PERK_FLAMETHROWER
+    PERK_FLAMETHROWER,
+    PERK_AMMO
 };
 
 class Perk {

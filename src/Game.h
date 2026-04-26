@@ -9,6 +9,7 @@
 #include "Boss.h"
 #include "Perk.h"
 #include "AIDirector.h"
+#include "CampaignManager.h"
 
 class Game: IDrawable {
 private:
@@ -22,6 +23,7 @@ private:
     std::vector<Perk*>   perks;
     Boss* boss;
     AIDirector* director;
+    CampaignManager* campaign;
 
     int   score;
     int   killCount;
@@ -41,6 +43,23 @@ private:
     int   perkDropCounter;
     int   waveFlashTimer;
     int   damageFlashTimer;
+
+    // Screen shake
+    float screenShakeX;
+    float screenShakeY;
+    float screenShakeIntensity;
+
+    // Auto-fire
+    bool  mouseHeld;
+    float mouseX, mouseY;
+    int   fireRateTimer;
+
+    // Ammo system
+    int   ammo;
+    int   maxAmmo;
+    bool  reloading;
+    int   reloadTimer;
+    int   reloadDuration;
 
 public:
     Game();
@@ -69,4 +88,6 @@ private:
     bool detectCollision(Entity* a, Entity* b);
     void pushBack(Entity* e1, Entity* e2);
     void clampPlayer();
+    void updateScreenShake();
+    void handleBossProjectiles();
 };

@@ -6,6 +6,7 @@ add_executable(game
     src/AIDirector.cpp
     src/Bullet.cpp
     src/Boss.cpp
+    src/CampaignManager.cpp
     src/Character.cpp
     src/Enemy.cpp
     src/Entity.cpp

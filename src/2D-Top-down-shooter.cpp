@@ -152,6 +152,7 @@ void startNewGame() {
 
     glutDisplayFunc(displayGame);
     glutPassiveMotionFunc(mouseMove);
+    glutMotionFunc(mouseMove);  // Track mouse while button held (for auto-fire aiming)
     glutKeyboardFunc(keyboardDown);
     glutKeyboardUpFunc(keyboardUp);
     glutReshapeFunc(reshape);

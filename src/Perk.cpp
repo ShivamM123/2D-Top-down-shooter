@@ -101,6 +101,35 @@ void Perk::draw() {
         glColor3f(1.0f, 0.5f, 0.0f);
         drawNGonOutline(cx, cy, r, 20);
         break;
+
+    case PERK_AMMO:
+        // Bronze/copper bullet shape
+        glColor3f(0.85f, 0.6f, 0.2f);
+        // Bullet body (vertical rectangle)
+        glBegin(GL_QUADS);
+        glVertex2f(cx - r*0.3f, cy - r*0.7f);
+        glVertex2f(cx + r*0.3f, cy - r*0.7f);
+        glVertex2f(cx + r*0.3f, cy + r*0.5f);
+        glVertex2f(cx - r*0.3f, cy + r*0.5f);
+        glEnd();
+        // Bullet tip
+        glColor3f(1.0f, 0.8f, 0.3f);
+        glBegin(GL_TRIANGLES);
+        glVertex2f(cx - r*0.3f, cy - r*0.7f);
+        glVertex2f(cx + r*0.3f, cy - r*0.7f);
+        glVertex2f(cx, cy - r);
+        glEnd();
+        // Casing base
+        glColor3f(0.65f, 0.45f, 0.15f);
+        glBegin(GL_QUADS);
+        glVertex2f(cx - r*0.35f, cy + r*0.5f);
+        glVertex2f(cx + r*0.35f, cy + r*0.5f);
+        glVertex2f(cx + r*0.35f, cy + r*0.7f);
+        glVertex2f(cx - r*0.35f, cy + r*0.7f);
+        glEnd();
+        glColor3f(1.0f, 0.7f, 0.3f);
+        drawNGonOutline(cx, cy, r + 2, 32);
+        break;
     }
 
     // Label
@@ -112,6 +141,7 @@ void Perk::draw() {
     case PERK_SHIELD:       label = "SHIELD"; break;
     case PERK_BETTER_GUN:   label = "RAPID"; break;
     case PERK_FLAMETHROWER: label = "FLAME"; break;
+    case PERK_AMMO:         label = "AMMO"; break;
     }
     for (const char* c = label; *c; c++)
         glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, *c);
